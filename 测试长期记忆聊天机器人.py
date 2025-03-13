@@ -7,7 +7,7 @@ from openai import OpenAI
 
 class LongTermMemoryAgent:
     def __init__(self, db_path="Red_memory2.db"):
-        self.client = OpenAI(api_key=" sk-X9xETgX9p8lZboXMvWQTy7mHKcpmBO1vTJ4sNzsNIB2YohyG",
+        self.client = OpenAI(api_key="your-api-key"，
                              base_url="https://api.chatanywhere.tech/v1")
         self.db_path = db_path
         self._init_db()
