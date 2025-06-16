@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    {% csrf_token %}
+      <!-- 必须放在文件首行或<head>标签内 -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent聊天机器人对话界面</title>
+    <style>
+        /* 基础布局 - 参考网页6 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* 侧边栏 - 参考网页5 */
+        .sidebar {
+            width: 280px;
+            background:whitesmoke;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* 主对话窗口 - 参考网页7 */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 消息显示区域 - 参考网页4 */
+        .message-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: white;
+        }
+
+        /* 消息气泡 - 参考网页4和网页7 */
+        .message {
+            max-width: 70%;
+            margin: 12px 0;
+            display: flex;
+            gap: 12px;
+        }
+
+        .user-message {
+            flex-direction: row-reverse;
+            margin-left: auto;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+        }
+
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            max-width: 600px;
+        }
+
+        .assistant-bubble {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .user-bubble {
+            background: #1890ff;
+            color: white;
+        }
+        .conversation-list { margin-top: 15px; }
+        .conversation-item { padding: 10px; margin-bottom: 5px; border-radius: 4px; cursor: pointer; }
+        .conversation-item:hover { background-color: #e0e0e0; }
+        .conversation-item.active { background-color: #007bff; color: white; }
+        /* 输入区域 - 参考网页1和网页8 */
+        .input-area {
+            padding: 20px;
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            resize: none;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #096dd9;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <!-- 对话列表 -->
+    <h2>欢迎你！{{ username }}</h2>
+        <div class="conversation-list">
+            <button id="newSessionBtn" style="margin-bottom: 10px;">➕ 新建会话</button>
+            {% for session in sessions %}
+                <div class="conversation-item" data-session-id="{{ session.id }}">
+                    {{ session.summary|truncatechars:20 }}
+                <button onclick="deleteSession('{{ session.id }}')" style="margin-left: 8px; color: red; background: none; border: none; cursor: pointer;">🗑</button>
+                </div>
+                <div class="session-meta">
+                    <span class="session-time">{{ session.last_accessed|date:"Y-m-d H:i" }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    
+    </div>
+    
+    <div class="chat-container">
+        <div class="message-area" id="messageContainer">
+            <!-- 示例消息 -->
+            <div class="message">
+                <div class="avatar"></div>
+                <div class="bubble assistant-bubble">
+                    您好！我是Agent老爵爷，有什么可以帮您？
+                </div>
+            </div>
+             {% for message in messages %}
+            <div class="message {% if message.role == 'user' %}user-message{% endif %}">
+                <div class="avatar">
+                    {% if message.role == 'user' %}
+                        <img src="{% static '/chat_app/img/user_avatar/' %}" alt="用户头像">
+                    {% else %}
+                        <img src="{% static '/chat_app/img/bot_avatar/' %}" alt="助理头像">
+                    {% endif %}
+                </div>
+                <div class="bubble {% if message.role == 'user' %}user-bubble{% else %}assistant-bubble{% endif %}">
+                    {{ message.content }}
+                    <div class="message-time">{{ message.timestamp|date:"H:i" }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    
+        <div class="input-area">
+            <textarea 
+
+                id="messageInput"
+                placeholder="输入消息..." 
+                rows="1"
+                oninput="autoResize(this)"
+            ></textarea>
+            <button type ="button" onclick="sendMessage()">发送</button>
+        </div>
+    
+    </div>
+
+    <script>
+        const session_id="{{ session_id }}";
+        const username="{{ username }}";//可以的
+        const user_id="{{ user_id }}";
+        const response="{{ response }}"
+        
+        // 取出隐藏在页面中的 csrf token
+        function getCookie(name) {
+          let cookieValue = null;
+          document.cookie.split(';').forEach(c => {
+              const [k,v] = c.trim().split('=');
+              if (k === name) cookieValue = decodeURIComponent(v);
+          });
+          return cookieValue;   
+        }
+        // 自适应输入框高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+        
+        // 发送消息功能 - 参考网页1和网页8
+        function sendMessage() {
+            const csrftoken = getCookie('csrftoken');
+            const input = document.getElementById('messageInput');//这个是可以的，通过get
+            const message = input.value.trim();
+            if (!message) return;
+
+             // 禁用按钮防止重复提交
+            const btn = document.querySelector('.input-area button');
+            btn.disabled = true;
+            btn.textContent = '发送中...';
+            
+
+            //发送消息到后端
+            fetch(`/chat_api/`,{
+                method:'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,  
+                },
+                credentials: 'include',  
+                
+                body:JSON.stringify({
+                    message:message,
+                    username:username,
+                    
+                    
+                })
+            })
+            .then(response => response.json())
+            .then(data=>{
+                if(data.status===true){
+                    const assistantBubbles = document.querySelectorAll('.assistant-bubble');
+                    const lastBubble = assistantBubbles[assistantBubbles.length-1];
+                    lastBubble.textContent = data.response
+                }else{
+                    console.error('后端错误',data.message);
+                }
+            })
+
+            .catch(error => {
+                console.error('请求失败:', error);
+                // 显示错误提示
+                {#alert('消息发送失败，请检查网络连接',error);#}
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '发送';
+            });
+
+            // 创建用户消息
+            const userMessage = document.createElement('div');
+            userMessage.className = 'message user-message';
+            userMessage.innerHTML = `
+                <div class="avatar" style="background:#1890ff"></div>
+                <div class="bubble user-bubble">${message}</div>
+            `;
+
+            // 创建助手回复
+            const assistantReply = document.createElement('div');
+            assistantReply.className = 'message ';
+            assistantReply.innerHTML = `
+                <div class="avatar"></div>
+                <div class="bubble assistant-bubble">
+                    已收到您的消息："${message}"。我正在思考如何回答...
+                </div>
+                
+            `;
+
+            // 添加到消息容器
+            const container = document.getElementById('messageContainer');
+            container.appendChild(userMessage);
+            container.appendChild(assistantReply);
+
+            // 清空输入框并重置高度
+            input.value = '';
+            autoResize(input);
+
+            // 自动滚动到底部 - 参考网页1
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 回车发送功能 - 参考网页1
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.addEventListener('click', () => {
+            const sessionId = item.getAttribute('data-session-id');
+            loadSessionMessages(sessionId);
+
+            // 高亮显示
+            document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            });
+        });
+
+        function loadSessionMessages(sessionId) {
+            fetch(`/get_session_messages/${sessionId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        const container = document.getElementById('messageContainer');
+                        container.innerHTML = ''; // 清空旧内容
+        
+                        data.messages.forEach(msg => {
+                            const msgDiv = document.createElement('div');
+                            msgDiv.className = `message ${msg.role === 'user' ? 'user-message' : ''}`;
+                            msgDiv.innerHTML = `
+                                <div class="avatar" style="background:${msg.role === 'user' ? '#1890ff' : '#ccc'}"></div>
+                                <div class="bubble ${msg.role === 'user' ? 'user-bubble' : 'assistant-bubble'}">
+                                    ${msg.content}
+                                    <div class="message-time">${msg.timestamp}</div>
+                                </div>
+                            `;
+                            container.appendChild(msgDiv);
+                        });
+        
+                        container.scrollTop = container.scrollHeight;
+                    } else {
+                        alert("获取消息失败");
+                    }
+                });
+        };
+        document.getElementById('newSessionBtn').addEventListener('click', () => {
+            fetch('/create_session/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status) {
+                    const newItem = document.createElement('div');
+                    newItem.className = 'conversation-item active';
+                    newItem.setAttribute('data-session-id', data.session_id);
+                    newItem.textContent = data.summary;
+        
+                    const meta = document.createElement('div');
+                    meta.className = 'session-meta';
+                    meta.innerHTML = `<span class="session-time">${data.created_at}</span>`;
+        
+                    // 移除旧 active
+                    document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+        
+                    // 插入并添加事件
+                    const list = document.querySelector('.conversation-list');
+                    list.insertBefore(meta, list.children[1]);  // 插到最上面
+                    list.insertBefore(newItem, meta);
+        
+                    newItem.addEventListener('click', () => {
+                        loadSessionMessages(data.session_id);
+                        document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+                        newItem.classList.add('active');
+                        currentSessionId = data.session_id;
+                    });
+        
+                    // 自动加载新会话
+                    currentSessionId = data.session_id;
+                    document.getElementById('messageContainer').innerHTML = '';
+                } else {
+                    alert("创建会话失败: " + data.error);
+                }
+            });
+        });
+        function deleteSession(sessionId) {
+            if (!confirm("确定要删除该会话吗？")) return;
+        
+            const csrftoken = getCookie('csrftoken');
+        
+            fetch(`/delete_session/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({ session_id: sessionId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload(); // 删除成功，刷新页面
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error('删除出错:', err);
+                alert('请求失败，请检查网络连接。');
+            });
+        }
+
+    </script>
+</body>
+</html>
