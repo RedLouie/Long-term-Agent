@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI对话模拟</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .chat-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            height: 500px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            display: flex;
+            margin: 10px 0;
+        }
+
+        .ai-message {
+            justify-content: flex-start;
+        }
+
+        .user-message {
+            justify-content: flex-end;
+        }
+
+        .bubble {
+            max-width: 70%;
+            padding: 12px 20px;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .ai-bubble {
+            background-color: #e0e0e0;
+            margin-left: 10px;
+        }
+
+        .user-bubble {
+            background-color: #0084ff;
+            color: white;
+            margin-right: 10px;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none;
+        }
+
+        .bubble:hover .delete-btn {
+            display: block;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container" id="chatContainer">
+        <!-- 示例对话 -->
+        <div class="message ai-message">
+            <div class="bubble ai-bubble">
+                你好！我是AI助手，有什么可以帮您的吗？
+                <button class="delete-btn" onclick="deleteMessage(this)">×</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="input-container">
+        <input type="text" id="messageInput" placeholder="输入消息...">
+        <button onclick="addMessage()">发送</button>
+    </div>
+
+    <script>
+        function addMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message) {
+                // 添加用户消息
+                const userDiv = document.createElement('div');
+                userDiv.className = 'message user-message';
+                userDiv.innerHTML = `
+                    <div class="bubble user-bubble">
+                        ${message}
+                        <button class="delete-btn" onclick="deleteMessage(this)">×</button>
+                    </div>
+                `;
+                document.getElementById('chatContainer').appendChild(userDiv);
+
+                // 模拟AI回复
+                setTimeout(() => {
+                    const aiDiv = document.createElement('div');
+                    aiDiv.className = 'message ai-message';
+                    aiDiv.innerHTML = `
+                        <div class="bubble ai-bubble">
+                            已收到：${message}
+                            <button class="delete-btn" onclick="deleteMessage(this)">×</button>
+                        </div>
+                    `;
+                    document.getElementById('chatContainer').appendChild(aiDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }, 500);
+
+                // 清空输入框
+                input.value = '';
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        function deleteMessage(btn) {
+            const bubble = btn.closest('.message');
+            if (bubble) {
+                bubble.remove();
+            }
+        }
+
+        // 回车发送功能
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addMessage();
+            }
+        });
+    </script>
+</body>
+</html>
