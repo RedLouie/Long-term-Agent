@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 智能助手</title>
+    <!-- 引入 FontAwesome 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --primary-hover: #357abd;
+            --bg-color: #f4f7f9;
+            --sidebar-bg: #ffffff;
+            --chat-bg: #f4f7f9;
+            --user-bubble-bg: #4a90e2;
+            --user-text-color: #ffffff;
+            --bot-bubble-bg: #ffffff;
+            --bot-text-color: #333333;
+            --border-color: #e6e6e6;
+            --text-secondary: #888888;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+
+        /* --- 侧边栏样式 --- */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #f0f4f8;
+            color: var(--primary-color);
+            border: 1px dashed var(--primary-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .new-chat-btn:hover {
+            background-color: #e6f0fa;
+        }
+
+        .conversation-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .conversation-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid transparent;
+        }
+
+        .conversation-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .conversation-item.active {
+            background-color: #e6f0fa;
+            border-color: #cce0f5;
+        }
+
+        .conv-title {
+            font-size: 0.95rem;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 25px;
+        }
+
+        .conv-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .delete-btn {
+            position: absolute;
+            right: 10px;
+            top: 12px;
+            background: none;
+            border: none;
+            color: #ff4d4f;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+            padding: 2px;
+        }
+
+        .conversation-item:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        /* --- 主聊天区域样式 --- */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--chat-bg);
+            position: relative;
+        }
+
+        .message-area {
+            flex: 1;
+            padding: 20px 40px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user-message {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ddd;
+            flex-shrink: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar i {
+            font-size: 20px;
+            color: #666;
+        }
+
+        .message-content {
+            max-width: 70%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bubble {
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-size: 1rem;
+            line-height: 1.6;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            /* 关键：保留换行符和长单词换行 */
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .assistant-bubble {
+            background: var(--bot-bubble-bg);
+            color: var(--bot-text-color);
+            border-top-left-radius: 2px;
+        }
+
+        .user-bubble {
+            background: var(--user-bubble-bg);
+            color: var(--user-text-color);
+            border-top-right-radius: 2px;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+            align-self: flex-start;
+        }
+
+        .user-message .message-time {
+            align-self: flex-end;
+        }
+
+        /* --- 输入区域样式 --- */
+        .input-wrapper {
+            background: #fff;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .input-area {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            background: #f0f2f5;
+            padding: 10px;
+            border-radius: 15px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .input-area:focus-within {
+            border-color: var(--primary-color);
+            background: #fff;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            resize: none;
+            padding: 8px;
+            font-size: 1rem;
+            max-height: 150px;
+            outline: none;
+            color: #333;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 50%;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-btn:hover {
+            background-color: rgba(0,0,0,0.05);
+            color: var(--primary-color);
+        }
+
+        .send-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #bbb;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                height: 100%;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .message-area {
+                padding: 15px;
+            }
+            .bubble {
+                max-width: 100%;
+            }
+            .toggle-menu {
+                display: block !important;
+            }
+        }
+
+        .toggle-menu {
+            display: none;
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 90;
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 移动端菜单开关 -->
+    <div class="toggle-menu" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fas fa-robot"></i> 智能助手</h2>
+            <div style="margin-bottom: 10px; font-size: 0.9em; color: #666;">
+                欢迎, {{ username }}
+            </div>
+            <button class="new-chat-btn" id="newSessionBtn">
+                <i class="fas fa-plus"></i> 新建会话
+            </button>
+        </div>
+
+        <div class="conversation-list" id="conversationList">
+            {% for session in sessions %}
+                <div class="conversation-item" data-session-id="{{ session.id }}">
+                    <div class="conv-title">{{ session.summary|default:"新会话" }}</div>
+                    <div class="conv-time">{{ session.last_accessed|date:"m-d H:i" }}</div>
+                    <button class="delete-btn" onclick="deleteSession(event, '{{ session.id }}')" title="删除会话">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            {% empty %}
+                <div class="empty-state" id="emptyState">
+                    暂无历史会话
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="chat-container" onclick="closeSidebarMobile()">
+        <div class="message-area" id="messageContainer">
+            <!-- 默认欢迎语 -->
+            <div class="message">
+                <div class="avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <div class="bubble assistant-bubble">
+                        您好！我是Agent老爵爷，有什么可以帮您？
+                    </div>
+                </div>
+            </div>
+
+            {% for message in messages %}
+            <div class="message {% if message.role == 'user' %}user-message{% endif %}">
+                <div class="avatar">
+                    {% if message.role == 'user' %}
+                        <!-- 这里的路径建议使用 static 标签 -->
+                        <img src="{% static 'chat_app/img/user_avatar.png' %}" onerror="this.style.display='none';this.parentElement.innerHTML='<i class=\'fas fa-user\'></i>'">
+                    {% else %}
+                        <img src="{% static 'chat_app/img/bot_avatar.png' %}" onerror="this.style.display='none';this.parentElement.innerHTML='<i class=\'fas fa-robot\'></i>'">
+                    {% endif %}
+                </div>
+                <div class="message-content">
+                    <!-- 使用 CSS white-space 处理换行，无需后端 linebreaksbr -->
+                    <div class="bubble {% if message.role == 'user' %}user-bubble{% else %}assistant-bubble{% endif %}">
+                        {{ message.content }}
+                    </div>
+                    <div class="message-time">{{ message.timestamp|date:"H:i" }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="input-wrapper">
+            <div class="input-area">
+                <input type="file" id="fileUpload" style="display: none;">
+                <button class="icon-btn" onclick="document.getElementById('fileUpload').click()" title="上传附件">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+
+                <textarea
+                    id="messageInput"
+                    placeholder="输入消息..."
+                    rows="1"
+                    oninput="autoResize(this)"
+                ></textarea>
+
+                <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                    <span>发送</span> <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化变量
+        // 【重要】改为 let 允许修改
+        let session_id = "{{ session_id }}";
+        const username = "{{ username }}";
+        const user_id = "{{ user_id }}";
+
+        // 获取当前时间字符串 HH:mm
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 取出 CSRF token
+        function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+          }
+          return cookieValue;
+        }
+
+        // 自适应输入框高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const csrftoken = getCookie('csrftoken');
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+             // UI 处理
+            const btn = document.getElementById('sendBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            // 1. 先把用户消息显示出来 (Optimistic UI)
+            appendMessage('user', message);
+
+            // 2. 显示 Loading 气泡
+            const loadingId = 'loading-' + Date.now();
+            appendLoadingMessage(loadingId);
+            scrollToBottom();
+
+            // 3. 发送请求
+            fetch(`/chat_api/`,{
+                method:'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body:JSON.stringify({
+                    message: message,
+                    username: username,
+                    // 【修复】关键修改：如果 session_id 是空字符串，传递 null
+                    // 这样 Django 就会接收到 None，而不是空字符串，从而避免 "Field 'id' expected a number" 错误
+                    session_id: session_id || null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 移除 loading
+                removeMessage(loadingId);
+
+                if(data.status === true){
+                    // 显示 AI 回复
+                    appendMessage('assistant', data.response);
+
+                    // 如果是新会话，后端可能会返回新的 session_id
+                    if(data.session_id && data.session_id !== session_id) {
+                        session_id = data.session_id;
+                        // 这里可以添加逻辑去刷新左侧列表，或者直接 reload
+                    }
+                } else {
+                    appendMessage('assistant', '❌ 错误: ' + (data.message || '未知错误'));
+                }
+            })
+            .catch(error => {
+                removeMessage(loadingId);
+                console.error('请求失败:', error);
+                appendMessage('assistant', '❌ 网络请求失败，请检查网络连接');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<span>发送</span> <i class="fas fa-paper-plane"></i>';
+                input.value = '';
+                autoResize(input);
+                scrollToBottom();
+            });
+        }
+
+        // 辅助函数：添加消息到 DOM
+        function appendMessage(role, content) {
+            const container = document.getElementById('messageContainer');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role === 'user' ? 'user-message' : ''}`;
+
+            // 头像处理
+            let avatarHtml = '';
+            if (role === 'user') {
+                avatarHtml = `<div class="avatar" style="background:#1890ff; color:white;"><i class="fas fa-user"></i></div>`;
+            } else {
+                avatarHtml = `<div class="avatar"><i class="fas fa-robot"></i></div>`;
+            }
+
+            msgDiv.innerHTML = `
+                ${avatarHtml}
+                <div class="message-content">
+                    <div class="bubble ${role === 'user' ? 'user-bubble' : 'assistant-bubble'}">${content}</div>
+                    <div class="message-time">${getCurrentTime()}</div>
+                </div>
+            `;
+            container.appendChild(msgDiv);
+        }
+
+        // 辅助函数：显示加载中
+        function appendLoadingMessage(id) {
+            const container = document.getElementById('messageContainer');
+            const msgDiv = document.createElement('div');
+            msgDiv.id = id;
+            msgDiv.className = 'message';
+            msgDiv.innerHTML = `
+                <div class="avatar"><i class="fas fa-robot"></i></div>
+                <div class="message-content">
+                    <div class="bubble assistant-bubble"><i class="fas fa-ellipsis-h"></i> 思考中...</div>
+                </div>
+            `;
+            container.appendChild(msgDiv);
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if(el) el.remove();
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messageContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 回车发送
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // --- 侧边栏逻辑 ---
+
+        // 点击会话项
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if(e.target.closest('.delete-btn')) return;
+
+                const newSessionId = item.getAttribute('data-session-id');
+                // 【重要】更新全局 session_id
+                session_id = newSessionId;
+
+                loadSessionMessages(newSessionId);
+
+                document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                closeSidebarMobile();
+            });
+        });
+
+        function loadSessionMessages(sessionId) {
+            fetch(`/get_session_messages/${sessionId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        const container = document.getElementById('messageContainer');
+                        container.innerHTML = '';
+
+                        data.messages.forEach(msg => {
+                            const msgDiv = document.createElement('div');
+                            msgDiv.className = `message ${msg.role === 'user' ? 'user-message' : ''}`;
+
+                            const avatarHtml = msg.role === 'user'
+                                ? `<div class="avatar" style="background:#1890ff; color:white;"><i class="fas fa-user"></i></div>`
+                                : `<div class="avatar"><i class="fas fa-robot"></i></div>`;
+
+                            msgDiv.innerHTML = `
+                                ${avatarHtml}
+                                <div class="message-content">
+                                    <div class="bubble ${msg.role === 'user' ? 'user-bubble' : 'assistant-bubble'}">${msg.content}</div>
+                                    <div class="message-time">${msg.timestamp || ''}</div>
+                                </div>
+                            `;
+                            container.appendChild(msgDiv);
+                        });
+                        scrollToBottom();
+                    } else {
+                        alert("获取消息失败");
+                    }
+                });
+        };
+
+        // 新建会话
+        document.getElementById('newSessionBtn').addEventListener('click', () => {
+            fetch('/create_session/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status) {
+                    // 1. 如果有空状态提示，先移除
+                    const emptyState = document.getElementById('emptyState');
+                    if(emptyState) emptyState.remove();
+
+                    // 2. 创建新元素
+                    const newItem = document.createElement('div');
+                    newItem.className = 'conversation-item active';
+                    newItem.setAttribute('data-session-id', data.session_id);
+                    newItem.innerHTML = `
+                        <div class="conv-title">${data.summary || '新会话'}</div>
+                        <div class="conv-time">刚刚</div>
+                        <button class="delete-btn" onclick="deleteSession(event, '${data.session_id}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    `;
+
+                    // 3. 移除其他 active
+                    document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+
+                    // 4. 插入到列表顶部
+                    const list = document.getElementById('conversationList');
+                    list.insertBefore(newItem, list.firstChild);
+
+                    // 5. 绑定事件
+                    newItem.addEventListener('click', (e) => {
+                        if(e.target.closest('.delete-btn')) return;
+                        session_id = data.session_id;
+                        loadSessionMessages(data.session_id);
+                        document.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('active'));
+                        newItem.classList.add('active');
+                    });
+
+                    // 6. 自动切换到新会话
+                    session_id = data.session_id;
+                    document.getElementById('messageContainer').innerHTML = '';
+
+                    // 显示欢迎语
+                    appendMessage('assistant', '您好！这是一个新的会话，请问有什么可以帮您？');
+
+                    closeSidebarMobile();
+                } else {
+                    alert("创建失败: " + data.error);
+                }
+            });
+        });
+
+        // 删除会话
+        function deleteSession(event, sessionId) {
+            event.stopPropagation();
+            if (!confirm("确定要删除该会话吗？")) return;
+
+            const csrftoken = getCookie('csrftoken');
+
+            fetch(`/delete_session/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({ session_id: sessionId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 移除 DOM
+                    event.target.closest('.conversation-item').remove();
+
+                    // 如果删除的是当前会话，清空界面
+                    if (session_id === sessionId) {
+                        document.getElementById('messageContainer').innerHTML = `
+                            <div class="message">
+                                <div class="avatar"><i class="fas fa-robot"></i></div>
+                                <div class="message-content">
+                                    <div class="bubble assistant-bubble">当前会话已删除，请选择其他会话或新建会话。</div>
+                                </div>
+                            </div>
+                        `;
+                        session_id = '';
+                    }
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('网络请求失败');
+            });
+        }
+
+        // --- 文件上传逻辑 (完整版) ---
+        document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 1. 验证文件类型
+            const allowedTypes = [
+                'text/plain', 'text/csv',
+                'image/jpeg', 'image/png', 'image/gif',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+                'application/pdf'
+            ];
+            const allowedExts = ['.txt', '.csv', '.jpg', '.jpeg', '.png', '.gif', '.doc', '.docx', '.ppt', '.pptx', '.pdf'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!allowedTypes.includes(file.type) && !allowedExts.includes(fileExt)) {
+                alert('不支持的文件格式！请上传文本、图片或Office文档。');
+                event.target.value = '';
+                return;
+            }
+
+            // 2. 准备上传
+            const csrftoken = getCookie('csrftoken');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('username', username);
+
+            // 【修复】文件上传时也需要校验 session_id 是否为空字符串
+            if (session_id) {
+                formData.append('session_id', session_id);
+            }
+
+            // UI 反馈
+            appendMessage('user', `📄 正在上传文件: ${file.name}...`);
+            const loadingId = 'upload-' + Date.now();
+            appendLoadingMessage(loadingId);
+            scrollToBottom();
+
+            // 3. 发送请求
+            fetch('/upload_file/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrftoken },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                removeMessage(loadingId);
+                if (data.status) {
+                    appendMessage('assistant', data.response);
+                } else {
+                    appendMessage('assistant', `❌ 上传失败: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                removeMessage(loadingId);
+                console.error(err);
+                appendMessage('assistant', '❌ 上传发生错误，请重试');
+            })
+            .finally(() => {
+                event.target.value = '';
+                scrollToBottom();
+            });
+        }
+
+        // 移动端辅助
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('show');
+        }
+        function closeSidebarMobile() {
+            if(window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('show');
+            }
+        }
+    </script>
+</body>
+</html>
